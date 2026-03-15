@@ -810,7 +810,7 @@ async def request_bot(
             bot_name=req.bot_name,
             user_token=user_token,
             native_meeting_id=native_meeting_id,
-            language=req.language,
+            language=req.language or os.getenv("DEFAULT_LANGUAGE"),
             task=req.task,
             transcription_tier=req.transcription_tier,
             recording_enabled=req.recording_enabled,
