@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared_models.models import ScheduledJoin, CalendarConnection, APIToken
 
-from ..config import BOT_MANAGER_URL
+from app.config import BOT_MANAGER_URL
 
 logger = logging.getLogger(__name__)
 

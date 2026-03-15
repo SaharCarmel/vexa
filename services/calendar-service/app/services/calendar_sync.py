@@ -12,9 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shared_models.models import CalendarConnection, CalendarEvent, ScheduledJoin
 from shared_models.meeting_url_parser import extract_meeting_info
 
-from ..crypto import decrypt_token, encrypt_token
-from ..oauth.google import refresh_access_token
-from ..config import DEFAULT_LEAD_TIME_MINUTES
+from app.crypto import decrypt_token, encrypt_token
+from app.oauth.google import refresh_access_token
+from app.config import DEFAULT_LEAD_TIME_MINUTES
 
 logger = logging.getLogger(__name__)
 

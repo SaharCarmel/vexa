@@ -8,7 +8,7 @@ from typing import Optional
 import httpx
 from google_auth_oauthlib.flow import Flow
 
-from ..config import (
+from app.config import (
     GOOGLE_CALENDAR_CLIENT_ID,
     GOOGLE_CALENDAR_CLIENT_SECRET,
     GOOGLE_CALENDAR_REDIRECT_URI,

@@ -10,9 +10,9 @@ from sqlalchemy import select, delete
 from shared_models.models import CalendarConnection, CalendarEvent, ScheduledJoin
 from shared_models.database import async_session_local
 
-from ..services.calendar_sync import sync_connection
-from ..services.bot_trigger import trigger_bot_join
-from .celery_app import celery_app
+from app.services.calendar_sync import sync_connection
+from app.services.bot_trigger import trigger_bot_join
+from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 

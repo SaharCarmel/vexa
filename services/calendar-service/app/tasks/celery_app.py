@@ -1,7 +1,7 @@
 """Celery configuration for calendar-service periodic tasks."""
 
 from celery import Celery
-from ..config import REDIS_URL, CALENDAR_SYNC_INTERVAL_SECONDS, JOIN_CHECK_INTERVAL_SECONDS
+from app.config import REDIS_URL, CALENDAR_SYNC_INTERVAL_SECONDS, JOIN_CHECK_INTERVAL_SECONDS
 
 celery_app = Celery("calendar_service", broker=REDIS_URL, backend=REDIS_URL)
 

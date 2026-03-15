@@ -1,7 +1,7 @@
 """Fernet encrypt/decrypt helpers for OAuth tokens."""
 
 from cryptography.fernet import Fernet, InvalidToken
-from .config import CALENDAR_ENCRYPTION_KEY
+from app.config import CALENDAR_ENCRYPTION_KEY
 import logging
 
 logger = logging.getLogger(__name__)

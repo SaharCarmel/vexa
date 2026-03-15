@@ -19,14 +19,14 @@ from shared_models.models import (
     ScheduledJoin,
 )
 
-from .config import LOG_LEVEL, DEFAULT_LEAD_TIME_MINUTES
-from .crypto import encrypt_token, decrypt_token
-from .oauth.google import (
+from app.config import LOG_LEVEL, DEFAULT_LEAD_TIME_MINUTES
+from app.crypto import encrypt_token, decrypt_token
+from app.oauth.google import (
     build_authorization_url,
     exchange_code_for_tokens,
     get_user_email,
 )
-from .services.calendar_sync import sync_connection
+from app.services.calendar_sync import sync_connection
 
 logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
 logger = logging.getLogger(__name__)
