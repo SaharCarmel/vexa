@@ -116,6 +116,9 @@ RUN sed -i '/openai-whisper/d' /tmp/requirements-whisperlive.txt || true \
 # Clean up requirements files
 RUN rm -f /tmp/requirements-*.txt
 
+# Ensure pydantic v2 is installed (shared_models uses v2 features like field_serializer)
+RUN pip3 install --no-cache-dir --force-reinstall 'pydantic>=2.0.0' 'email-validator>=2.0.0'
+
 # Copy shared library
 COPY libs/shared-models /app/shared-models
 

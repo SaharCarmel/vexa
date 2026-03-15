@@ -16,16 +16,16 @@
 # -----------------------------------------------------------------------------
 # Web Framework
 # -----------------------------------------------------------------------------
-# Note: fastapi<0.100.0 for pydantic v1 compatibility (Vexa uses v1 syntax)
-fastapi>=0.95.0,<0.100.0
+# Note: pydantic v2 requires fastapi >= 0.100
+fastapi>=0.100.0
 uvicorn[standard]>=0.22.0
 python-multipart>=0.0.6
 
 # -----------------------------------------------------------------------------
 # Data Validation & Serialization
 # -----------------------------------------------------------------------------
-# Note: Vexa codebase uses pydantic v1 syntax, keep v1 for compatibility
-pydantic>=1.10.0,<2.0.0
+# Note: shared_models uses pydantic v2 features (field_serializer, field_validator)
+pydantic>=2.0.0
 email-validator>=2.0.0
 pyyaml>=6.0
 

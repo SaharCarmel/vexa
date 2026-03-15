@@ -215,7 +215,7 @@ fi
 # -----------------------------------------------------------------------------
 
 echo "Checking database migrations..."
-cd /app/transcription-collector
+cd /app
 
 # Check if database is accessible and run migrations
 if pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -q 2>/dev/null; then
@@ -314,22 +314,14 @@ echo ""
 echo "Verifying transcription service..."
 if [ "${SKIP_TRANSCRIPTION_CHECK:-false}" = "true" ]; then
     echo "  ⚠️ Skipping transcription service verification (SKIP_TRANSCRIPTION_CHECK=true)"
-    echo "     Ensuring minimal variables are set..."
-    
-    # Still check for URL presence as it's critical, but don't ping it
-    TRANSCRIBER_URL="${TRANSCRIBER_URL:-${REMOTE_TRANSCRIBER_URL:-}}"
-    if [ -z "$TRANSCRIBER_URL" ]; then
-        echo "  ❌ ERROR: TRANSCRIBER_URL (or REMOTE_TRANSCRIBER_URL) is not set"
-        exit 1
-    fi
-    
-    TRANSCRIBER_API_KEY="${TRANSCRIBER_API_KEY:-${REMOTE_TRANSCRIBER_API_KEY:-}}"
-    if [ -z "$TRANSCRIBER_API_KEY" ]; then
-         echo "  ❌ ERROR: TRANSCRIBER_API_KEY (or REMOTE_TRANSCRIBER_API_KEY) is not set"
-         exit 1
-    fi
-    
-    echo "  ✅ Transcription configuration presence verified (connectivity check skipped)"
+
+    # Set placeholder values if not provided so services don't crash on startup
+    export TRANSCRIBER_URL="${TRANSCRIBER_URL:-${REMOTE_TRANSCRIBER_URL:-http://localhost:9000/v1/audio/transcriptions}}"
+    export REMOTE_TRANSCRIBER_URL="${REMOTE_TRANSCRIBER_URL:-$TRANSCRIBER_URL}"
+    export TRANSCRIBER_API_KEY="${TRANSCRIBER_API_KEY:-${REMOTE_TRANSCRIBER_API_KEY:-placeholder}}"
+    export REMOTE_TRANSCRIBER_API_KEY="${REMOTE_TRANSCRIBER_API_KEY:-$TRANSCRIBER_API_KEY}"
+
+    echo "  ✅ Transcription check skipped, placeholder values set"
 else
     # Standard verification logic
     TRANSCRIBER_URL="${TRANSCRIBER_URL:-${REMOTE_TRANSCRIBER_URL:-}}"
