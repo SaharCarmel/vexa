@@ -74,6 +74,14 @@ aiodocker>=0.21.0
 # that use pydantic v1 for compatibility with the rest of the Vexa codebase
 
 # -----------------------------------------------------------------------------
+# Calendar Integration (Google Calendar OAuth + API)
+# -----------------------------------------------------------------------------
+google-api-python-client>=2.100.0
+google-auth>=2.23.0
+google-auth-oauthlib>=1.1.0
+cryptography>=41.0.0
+
+# -----------------------------------------------------------------------------
 # Utilities
 # -----------------------------------------------------------------------------
 python-dotenv>=1.0.0

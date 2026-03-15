@@ -1,5 +1,5 @@
 import sqlalchemy
-from sqlalchemy import (Column, String, Text, Integer, DateTime, Float, ForeignKey, Index, UniqueConstraint)
+from sqlalchemy import (Column, String, Text, Integer, DateTime, Float, Boolean, ForeignKey, Index, UniqueConstraint)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func, text
 from sqlalchemy.orm import declarative_base, relationship
@@ -201,4 +201,88 @@ class TranscriptionJob(Base):
     __table_args__ = (
         Index('ix_transcription_job_status_created', 'status', 'created_at'),
         Index('ix_transcription_job_user_created', 'user_id', 'created_at'),
+    )
+
+
+# --- Calendar Integration Models ---
+
+class CalendarConnection(Base):
+    """Stores OAuth tokens and settings for a user's calendar connection."""
+    __tablename__ = "calendar_connections"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    provider = Column(String(50), nullable=False, default='google')  # 'google'
+    provider_account_id = Column(String(255), nullable=True)  # e.g. user's Google email
+    access_token_enc = Column(Text, nullable=True)  # Fernet-encrypted
+    refresh_token_enc = Column(Text, nullable=True)  # Fernet-encrypted
+    token_expires_at = Column(DateTime, nullable=True)
+    scopes = Column(Text, nullable=True)  # space-separated OAuth scopes
+    status = Column(String(50), nullable=False, default='active', index=True)  # active/revoked/error
+    settings = Column(JSONB, nullable=False, server_default=text("'{}'::jsonb"), default=lambda: {})
+    last_sync_at = Column(DateTime, nullable=True)
+    last_error = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    user = relationship("User")
+    events = relationship("CalendarEvent", back_populates="connection", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'provider', 'provider_account_id', name='_user_provider_account_uc'),
+        Index('ix_calendar_conn_user_provider', 'user_id', 'provider'),
+    )
+
+
+class CalendarEvent(Base):
+    """Synced calendar event with extracted meeting info."""
+    __tablename__ = "calendar_events"
+    id = Column(Integer, primary_key=True, index=True)
+    connection_id = Column(Integer, ForeignKey("calendar_connections.id"), nullable=False, index=True)
+    external_event_id = Column(String(1024), nullable=False)  # Google Calendar event ID
+    title = Column(Text, nullable=True)
+    start_time = Column(DateTime(timezone=True), nullable=False)
+    end_time = Column(DateTime(timezone=True), nullable=False)
+    is_recurring = Column(Boolean, nullable=False, default=False)
+    meeting_platform = Column(String(50), nullable=True)  # google_meet/zoom/teams or null
+    meeting_native_id = Column(String(255), nullable=True)
+    meeting_url = Column(Text, nullable=True)
+    meeting_passcode = Column(String(255), nullable=True)
+    is_cancelled = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    connection = relationship("CalendarConnection", back_populates="events")
+    scheduled_joins = relationship("ScheduledJoin", back_populates="calendar_event", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint('connection_id', 'external_event_id', name='_connection_event_uc'),
+        Index('ix_cal_event_start', 'start_time'),
+        Index('ix_cal_event_connection_start', 'connection_id', 'start_time'),
+    )
+
+
+class ScheduledJoin(Base):
+    """Pending or triggered auto-join record for a calendar event."""
+    __tablename__ = "scheduled_joins"
+    id = Column(Integer, primary_key=True, index=True)
+    calendar_event_id = Column(Integer, ForeignKey("calendar_events.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    platform = Column(String(50), nullable=False)  # google_meet/zoom/teams
+    native_meeting_id = Column(String(255), nullable=False)
+    meeting_url = Column(Text, nullable=True)
+    passcode = Column(String(255), nullable=True)
+    trigger_at = Column(DateTime(timezone=True), nullable=False)  # start_time - lead_time
+    status = Column(String(50), nullable=False, default='pending', index=True)  # pending/triggered/cancelled/failed
+    meeting_id = Column(Integer, ForeignKey("meetings.id"), nullable=True)  # set after bot is triggered
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    calendar_event = relationship("CalendarEvent", back_populates="scheduled_joins")
+    user = relationship("User")
+    meeting = relationship("Meeting")
+
+    __table_args__ = (
+        Index('ix_scheduled_join_trigger', 'status', 'trigger_at'),
+        Index('ix_scheduled_join_user', 'user_id', 'status'),
     )

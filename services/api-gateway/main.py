@@ -32,6 +32,7 @@ ADMIN_API_URL = os.getenv("ADMIN_API_URL")
 BOT_MANAGER_URL = os.getenv("BOT_MANAGER_URL")
 TRANSCRIPTION_COLLECTOR_URL = os.getenv("TRANSCRIPTION_COLLECTOR_URL")
 MCP_URL = os.getenv("MCP_URL")
+CALENDAR_SERVICE_URL = os.getenv("CALENDAR_SERVICE_URL")
 
 # Public share-link settings (for "ChatGPT read from URL" flows)
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL")  # Optional override, e.g. https://api.vexa.ai
@@ -408,6 +409,107 @@ async def avatar_reset_proxy(platform: Platform, native_meeting_id: str, request
     return await forward_request(app.state.http_client, "DELETE", url, request)
 
 # --- END Voice Agent Interaction Routes ---
+
+# --- Calendar Service Routes (proxy to Calendar Service) ---
+
+@app.get("/calendar/connect/google",
+         tags=["Calendar"],
+         summary="Start Google Calendar OAuth flow",
+         description="Returns a Google OAuth authorization URL. Redirect the user to this URL to begin the calendar connection.",
+         dependencies=[Depends(api_key_scheme)])
+async def calendar_connect_google_proxy(request: Request):
+    """Forward request to Calendar Service to initiate OAuth."""
+    url = f"{CALENDAR_SERVICE_URL}/connect/google"
+    return await forward_request(app.state.http_client, "GET", url, request)
+
+
+@app.get("/calendar/callback/google",
+         tags=["Calendar"],
+         summary="Handle Google OAuth callback",
+         description="Handles the Google OAuth callback after user authorization.")
+async def calendar_callback_google_proxy(request: Request):
+    """Forward OAuth callback to Calendar Service."""
+    url = f"{CALENDAR_SERVICE_URL}/callback/google"
+    return await forward_request(app.state.http_client, "GET", url, request)
+
+
+@app.get("/calendar/connections",
+         tags=["Calendar"],
+         summary="List calendar connections",
+         description="Returns the user's calendar connections with status and settings.",
+         dependencies=[Depends(api_key_scheme)])
+async def calendar_list_connections_proxy(request: Request):
+    """Forward request to Calendar Service."""
+    url = f"{CALENDAR_SERVICE_URL}/connections"
+    return await forward_request(app.state.http_client, "GET", url, request)
+
+
+@app.delete("/calendar/connections/{connection_id}",
+            tags=["Calendar"],
+            summary="Disconnect a calendar",
+            description="Revokes tokens and disconnects the calendar connection.",
+            dependencies=[Depends(api_key_scheme)])
+async def calendar_delete_connection_proxy(connection_id: int, request: Request):
+    """Forward request to Calendar Service."""
+    url = f"{CALENDAR_SERVICE_URL}/connections/{connection_id}"
+    return await forward_request(app.state.http_client, "DELETE", url, request)
+
+
+@app.patch("/calendar/connections/{connection_id}/settings",
+           tags=["Calendar"],
+           summary="Update calendar connection settings",
+           description="Update lead time, toggle auto-join, or exclude calendars.",
+           dependencies=[Depends(api_key_scheme)])
+async def calendar_update_settings_proxy(connection_id: int, request: Request):
+    """Forward request to Calendar Service."""
+    url = f"{CALENDAR_SERVICE_URL}/connections/{connection_id}/settings"
+    return await forward_request(app.state.http_client, "PATCH", url, request)
+
+
+@app.get("/calendar/events",
+         tags=["Calendar"],
+         summary="List upcoming synced events",
+         description="Returns upcoming calendar events with extracted meeting info and join status.",
+         dependencies=[Depends(api_key_scheme)])
+async def calendar_list_events_proxy(request: Request):
+    """Forward request to Calendar Service."""
+    url = f"{CALENDAR_SERVICE_URL}/events"
+    return await forward_request(app.state.http_client, "GET", url, request)
+
+
+@app.post("/calendar/events/{event_id}/skip",
+          tags=["Calendar"],
+          summary="Skip auto-join for an event",
+          description="Cancels the auto-join for a specific calendar event.",
+          dependencies=[Depends(api_key_scheme)])
+async def calendar_skip_event_proxy(event_id: int, request: Request):
+    """Forward request to Calendar Service."""
+    url = f"{CALENDAR_SERVICE_URL}/events/{event_id}/skip"
+    return await forward_request(app.state.http_client, "POST", url, request)
+
+
+@app.post("/calendar/events/{event_id}/unskip",
+          tags=["Calendar"],
+          summary="Re-enable auto-join for an event",
+          description="Re-enables the auto-join for a previously skipped calendar event.",
+          dependencies=[Depends(api_key_scheme)])
+async def calendar_unskip_event_proxy(event_id: int, request: Request):
+    """Forward request to Calendar Service."""
+    url = f"{CALENDAR_SERVICE_URL}/events/{event_id}/unskip"
+    return await forward_request(app.state.http_client, "POST", url, request)
+
+
+@app.post("/calendar/sync/{connection_id}",
+          tags=["Calendar"],
+          summary="Force immediate calendar sync",
+          description="Triggers an immediate sync of the specified calendar connection.",
+          dependencies=[Depends(api_key_scheme)])
+async def calendar_force_sync_proxy(connection_id: int, request: Request):
+    """Forward request to Calendar Service."""
+    url = f"{CALENDAR_SERVICE_URL}/sync/{connection_id}"
+    return await forward_request(app.state.http_client, "POST", url, request)
+
+# --- END Calendar Service Routes ---
 
 # --- Recording Routes (proxy to Bot Manager) ---
 

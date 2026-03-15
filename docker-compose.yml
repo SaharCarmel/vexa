@@ -12,6 +12,7 @@ services:
       - TRANSCRIPTION_COLLECTOR_URL=http://transcription-collector:8000
       - MCP_URL=http://mcp:18888
       - REDIS_URL=redis://redis:6379/0
+      - CALENDAR_SERVICE_URL=http://calendar-service:8090
       - PUBLIC_BASE_URL=https://share.dev.vexa.ai
       - TRANSCRIPT_SHARE_TTL_SECONDS=900
       - LOG_LEVEL=DEBUG
@@ -22,6 +23,8 @@ services:
       bot-manager:
         condition: service_started
       transcription-collector:
+        condition: service_started
+      calendar-service:
         condition: service_started
     networks:
       - vexa_default
@@ -260,6 +263,67 @@ services:
       - TTS_API_TOKEN=${TTS_API_TOKEN:-}
       - LOG_LEVEL=DEBUG
     init: true
+    networks:
+      - vexa_default
+    restart: unless-stopped
+
+  calendar-service:
+    build:
+      context: .
+      dockerfile: services/calendar-service/Dockerfile
+    expose:
+      - "8090"
+    environment:
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-vexa}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_SSL_MODE=${DB_SSL_MODE:-disable}
+      - REDIS_URL=redis://redis:6379/0
+      - GOOGLE_CALENDAR_CLIENT_ID=${GOOGLE_CALENDAR_CLIENT_ID:-}
+      - GOOGLE_CALENDAR_CLIENT_SECRET=${GOOGLE_CALENDAR_CLIENT_SECRET:-}
+      - GOOGLE_CALENDAR_REDIRECT_URI=${GOOGLE_CALENDAR_REDIRECT_URI:-}
+      - CALENDAR_ENCRYPTION_KEY=${CALENDAR_ENCRYPTION_KEY:-}
+      - BOT_MANAGER_URL=http://bot-manager:8080
+      - DEFAULT_LEAD_TIME_MINUTES=${DEFAULT_LEAD_TIME_MINUTES:-2}
+      - CALENDAR_SYNC_INTERVAL_SECONDS=${CALENDAR_SYNC_INTERVAL_SECONDS:-300}
+      - JOIN_CHECK_INTERVAL_SECONDS=${JOIN_CHECK_INTERVAL_SECONDS:-60}
+      - LOG_LEVEL=DEBUG
+    init: true
+    depends_on:
+      redis:
+        condition: service_started
+    networks:
+      - vexa_default
+    restart: unless-stopped
+
+  calendar-worker:
+    build:
+      context: .
+      dockerfile: services/calendar-service/Dockerfile
+    command: ["celery", "-A", "app.tasks.celery_app", "worker", "--beat", "--loglevel=info"]
+    environment:
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-vexa}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_SSL_MODE=${DB_SSL_MODE:-disable}
+      - REDIS_URL=redis://redis:6379/0
+      - GOOGLE_CALENDAR_CLIENT_ID=${GOOGLE_CALENDAR_CLIENT_ID:-}
+      - GOOGLE_CALENDAR_CLIENT_SECRET=${GOOGLE_CALENDAR_CLIENT_SECRET:-}
+      - GOOGLE_CALENDAR_REDIRECT_URI=${GOOGLE_CALENDAR_REDIRECT_URI:-}
+      - CALENDAR_ENCRYPTION_KEY=${CALENDAR_ENCRYPTION_KEY:-}
+      - BOT_MANAGER_URL=http://bot-manager:8080
+      - DEFAULT_LEAD_TIME_MINUTES=${DEFAULT_LEAD_TIME_MINUTES:-2}
+      - CALENDAR_SYNC_INTERVAL_SECONDS=${CALENDAR_SYNC_INTERVAL_SECONDS:-300}
+      - JOIN_CHECK_INTERVAL_SECONDS=${JOIN_CHECK_INTERVAL_SECONDS:-60}
+      - LOG_LEVEL=INFO
+    init: true
+    depends_on:
+      redis:
+        condition: service_started
     networks:
       - vexa_default
     restart: unless-stopped

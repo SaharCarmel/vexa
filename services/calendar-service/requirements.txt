@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+httpx
+SQLAlchemy[asyncio]
+asyncpg
+redis>=5.0.0
+celery==5.3.0
+python-dotenv
+cryptography
+google-api-python-client
+google-auth
+google-auth-oauthlib

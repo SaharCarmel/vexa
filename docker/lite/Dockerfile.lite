@@ -80,6 +80,7 @@ RUN mkdir -p \
     /app/vexa-bot \
     /app/mcp \
     /app/tts-service \
+    /app/calendar-service \
     /app/shared-models \
     /app/alembic \
     /var/log/supervisor \
@@ -153,6 +154,9 @@ COPY services/mcp/ /app/mcp/
 
 # TTS Service
 COPY services/tts-service/ /app/tts-service/
+
+# Calendar Service
+COPY services/calendar-service/app/ /app/calendar-service/app/
 
 # Alembic migrations
 COPY alembic.ini /app/alembic.ini
@@ -245,6 +249,13 @@ ENV DB_HOST=localhost \
 # Redis defaults (should be overridden)
 ENV REDIS_HOST=localhost \
     REDIS_PORT=6379
+
+# Calendar service defaults
+ENV GOOGLE_CALENDAR_CLIENT_ID="" \
+    GOOGLE_CALENDAR_CLIENT_SECRET="" \
+    GOOGLE_CALENDAR_REDIRECT_URI="" \
+    CALENDAR_ENCRYPTION_KEY="" \
+    DEFAULT_LEAD_TIME_MINUTES=2
 
 # -----------------------------------------------------------------------------
 # Ports
