@@ -28,7 +28,7 @@ from app.oauth.google import (
 )
 from app.services.calendar_sync import sync_connection
 
-logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
+logging.basicConfig(level=getattr(logging, LOG_LEVEL.upper(), logging.INFO))
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
