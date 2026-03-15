@@ -276,31 +276,25 @@ class RemoteTranscriber:
             "X-Transcription-Tier": self.transcription_tier,
         }
         
-        # Prepare form data
+        # Prepare form data — only standard Whisper API fields
+        # (non-standard fields like transcription_tier, vad_model, timestamp_granularities
+        #  cause 400 errors on third-party providers like Groq)
         data = {
             "model": self.model,
             "temperature": self.temperature,
-            "transcription_tier": self.transcription_tier,
         }
-        
-        if self.vad_model:
-            data["vad_model"] = self.vad_model
-        
+
         if language:
             data["language"] = language
-        
+
         if prompt:
             data["prompt"] = prompt
-        
+
         if task == "translate":
             data["task"] = task
-        
-        # Add response_format if supported (some APIs may ignore this)
+
         if self.response_format:
             data["response_format"] = self.response_format
-        
-        if self.timestamp_granularities:
-            data["timestamp_granularities"] = self.timestamp_granularities
         
         # Log request details (masked)
         auth_header_masked = f"Bearer {self.api_key[:4]}...{self.api_key[-4:]}" if len(self.api_key) > 8 else "Bearer ***"
