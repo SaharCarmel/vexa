@@ -372,8 +372,11 @@ fi
 # Skip health check for well-known cloud providers (they don't have /health endpoints)
 SERVICE_REACHABLE=false
 if [[ "$BASE_URL" == *"api.openai.com"* ]] || [[ "$BASE_URL" == *"api.groq.com"* ]] || [[ "$BASE_URL" == *"api.elevenlabs.io"* ]]; then
-    echo "  ℹ️ Cloud transcription provider detected ($BASE_URL), skipping health check"
+    echo "  ℹ️ Cloud transcription provider detected ($BASE_URL), skipping startup verification"
+    echo "  ✅ API key and connectivity will be validated at runtime"
+    # Skip entire verification block for cloud providers
     SERVICE_REACHABLE=true
+    API_KEY_VALID=true
 elif curl -s -f --max-time 5 "$HEALTH_URL" >/dev/null 2>&1; then
     SERVICE_REACHABLE=true
 elif curl -s -f --max-time 5 "$BASE_URL" >/dev/null 2>&1; then
@@ -386,68 +389,42 @@ if [ "$SERVICE_REACHABLE" = "false" ]; then
     exit 1
 fi
 
-# Verify API key by making an authenticated request
-# Try health endpoint with auth, or if that fails, try a minimal API call
-API_KEY_VALID=false
-HTTP_CODE=0
-
-# Try health endpoint with Authorization header
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
-    -H "Authorization: Bearer ${TRANSCRIBER_API_KEY}" \
-    "$HEALTH_URL" 2>/dev/null)
-
-# Health endpoint might not require auth, so check if we get 200 or 401/403
-if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
-    # If we get 401/403, it means service is reachable but auth might be required
-    # If we get 200, service is working
-    API_KEY_VALID=true
-fi
-
-# If health endpoint doesn't validate auth, try the actual transcription endpoint
-# Send a minimal valid request to verify API key
-if [ "$API_KEY_VALID" = "false" ] || [ "$HTTP_CODE" = "200" ]; then
-    # Create a minimal test file for the request
-    TEST_FILE=$(mktemp)
-    echo "test" > "$TEST_FILE"
-    
-    # Try a minimal request to the transcription endpoint to verify API key
-    # We expect either 200 (success) or 400/422 (bad request, but auth passed)
-    # vs 401/403 (auth failed) or connection error
-    TRANS_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" --max-time 5 \
-        -X POST \
+# Verify API key — skip for cloud providers (already set API_KEY_VALID=true above)
+if [ "$API_KEY_VALID" != "true" ]; then
+    API_KEY_VALID=false
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
         -H "Authorization: Bearer ${TRANSCRIBER_API_KEY}" \
-        -F "file=@${TEST_FILE}" \
-        -F "model=test" \
-        "$TRANSCRIBER_URL" 2>/dev/null)
-    
-    TRANS_HTTP_CODE=$(echo "$TRANS_RESPONSE" | grep "HTTP_CODE" | cut -d: -f2)
-    TRANS_BODY=$(echo "$TRANS_RESPONSE" | grep -v "HTTP_CODE")
-    
-    # Clean up temp file
-    rm -f "$TEST_FILE"
-    
-    # If we get 400/422, check if it's an auth error or just invalid request
-    if [ "$TRANS_HTTP_CODE" = "401" ] || [ "$TRANS_HTTP_CODE" = "403" ]; then
-        echo "  ❌ ERROR: Invalid transcription service API key"
-        echo "     Please verify TRANSCRIBER_API_KEY is correct"
-        exit 1
-    elif echo "$TRANS_BODY" | grep -qi "invalid.*token\|invalid.*api.*key\|forbidden\|unauthorized"; then
-        echo "  ❌ ERROR: Invalid transcription service API key"
-        echo "     Please verify TRANSCRIBER_API_KEY is correct"
-        exit 1
-    elif [ "$TRANS_HTTP_CODE" = "400" ] || [ "$TRANS_HTTP_CODE" = "422" ] || [ "$TRANS_HTTP_CODE" = "200" ]; then
-        # 400/422 with invalid request format is OK - means auth passed
-        # 200 means success
+        "$HEALTH_URL" 2>/dev/null)
+
+    if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
         API_KEY_VALID=true
     fi
-fi
 
-if [ "$API_KEY_VALID" = "true" ]; then
-    echo "  ✅ Transcription service is reachable and API key is valid"
-else
-    echo "  ❌ ERROR: Cannot verify transcription service API key"
-    echo "     Service is reachable but authentication verification failed"
-    exit 1
+    if [ "$API_KEY_VALID" = "false" ]; then
+        TEST_FILE=$(mktemp)
+        echo "test" > "$TEST_FILE"
+        TRANS_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
+            -X POST \
+            -H "Authorization: Bearer ${TRANSCRIBER_API_KEY}" \
+            -F "file=@${TEST_FILE}" \
+            -F "model=test" \
+            "$TRANSCRIBER_URL" 2>/dev/null)
+        rm -f "$TEST_FILE"
+
+        if [ "$TRANS_HTTP_CODE" = "400" ] || [ "$TRANS_HTTP_CODE" = "422" ] || [ "$TRANS_HTTP_CODE" = "200" ]; then
+            API_KEY_VALID=true
+        elif [ "$TRANS_HTTP_CODE" = "401" ] || [ "$TRANS_HTTP_CODE" = "403" ]; then
+            echo "  ❌ ERROR: Invalid transcription service API key"
+            exit 1
+        fi
+    fi
+
+    if [ "$API_KEY_VALID" = "true" ]; then
+        echo "  ✅ Transcription service is reachable and API key is valid"
+    else
+        echo "  ❌ ERROR: Cannot verify transcription service API key"
+        exit 1
+    fi
 fi
 fi
 echo ""
