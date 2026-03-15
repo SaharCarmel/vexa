@@ -368,9 +368,13 @@ if [[ "$TRANSCRIBER_URL" == *"/health"* ]]; then
     HEALTH_URL="$TRANSCRIBER_URL"
 fi
 
-# Check if service is reachable (try health endpoint without auth first)
+# Check if service is reachable
+# Skip health check for well-known cloud providers (they don't have /health endpoints)
 SERVICE_REACHABLE=false
-if curl -s -f --max-time 5 "$HEALTH_URL" >/dev/null 2>&1; then
+if [[ "$BASE_URL" == *"api.openai.com"* ]] || [[ "$BASE_URL" == *"api.groq.com"* ]] || [[ "$BASE_URL" == *"api.elevenlabs.io"* ]]; then
+    echo "  ℹ️ Cloud transcription provider detected ($BASE_URL), skipping health check"
+    SERVICE_REACHABLE=true
+elif curl -s -f --max-time 5 "$HEALTH_URL" >/dev/null 2>&1; then
     SERVICE_REACHABLE=true
 elif curl -s -f --max-time 5 "$BASE_URL" >/dev/null 2>&1; then
     SERVICE_REACHABLE=true
