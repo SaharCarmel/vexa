@@ -278,11 +278,11 @@ async def start_bot_container(
         # Open log file for the bot process
         log_handle = open(log_file, "w")
 
-        # Spawn the bot process
+        # Spawn the bot process with tee so output goes to both log file and stdout (Railway logs)
         proc = subprocess.Popen(
-            ["node", BOT_SCRIPT_PATH],
+            ["bash", "-c", f"exec node {BOT_SCRIPT_PATH} 2>&1 | tee -a {log_file}"],
             env=env,
-            stdout=log_handle,
+            stdout=None,  # inherits parent stdout for container log visibility
             stderr=subprocess.STDOUT,
             cwd=BOT_WORKING_DIR,
             preexec_fn=os.setsid  # Create new process group for clean termination
