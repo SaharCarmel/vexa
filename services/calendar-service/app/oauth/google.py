@@ -48,6 +48,7 @@ def build_authorization_url(state: Optional[str] = None) -> tuple[str, str]:
         include_granted_scopes="true",
         prompt="consent",
         state=state,
+        code_challenge_method=None,  # Disable PKCE — server-side flow with client_secret
     )
     return authorization_url, state
 
