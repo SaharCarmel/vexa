@@ -100,7 +100,7 @@ def process_scheduled_joins():
 async def _process_scheduled_joins_async():
     engine, Session = _make_engine_and_session()
     try:
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         async with Session() as db:
             stmt = select(ScheduledJoin).where(
                 ScheduledJoin.status == "pending",
@@ -129,7 +129,7 @@ def cleanup_stale_events():
 async def _cleanup_stale_events_async():
     engine, Session = _make_engine_and_session()
     try:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+        cutoff = datetime.utcnow() - timedelta(days=7)
         async with Session() as db:
             # Delete old scheduled_joins via their calendar_events
             old_events_stmt = select(CalendarEvent.id).where(CalendarEvent.end_time < cutoff)

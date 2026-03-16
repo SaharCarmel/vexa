@@ -261,7 +261,7 @@ async def list_events(
     db: AsyncSession = Depends(get_db),
 ):
     """List upcoming synced events with join status."""
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     stmt = (
         select(CalendarEvent)
         .join(CalendarConnection)

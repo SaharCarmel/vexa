@@ -21,9 +21,9 @@ logger = logging.getLogger(__name__)
 
 async def _ensure_valid_token(connection: CalendarConnection, db: AsyncSession) -> str:
     """Return a valid access token, refreshing if necessary."""
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     # Proactive refresh: refresh if expires in less than 5 minutes
-    if connection.token_expires_at and connection.token_expires_at.replace(tzinfo=timezone.utc) > now + timedelta(minutes=5):
+    if connection.token_expires_at and connection.token_expires_at > now + timedelta(minutes=5):
         return decrypt_token(connection.access_token_enc)
 
     # Need to refresh
@@ -46,7 +46,7 @@ def _fetch_events_from_google(access_token: str, calendar_id: str = "primary") -
     credentials = Credentials(token=access_token)
     service = build("calendar", "v3", credentials=credentials, cache_discovery=False)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     time_min = now.isoformat()
     time_max = (now + timedelta(hours=24)).isoformat()
 
@@ -191,8 +191,8 @@ async def sync_connection(connection: CalendarConnection, db: AsyncSession) -> i
     existing_stmt = select(CalendarEvent).where(
         CalendarEvent.connection_id == connection.id,
         CalendarEvent.is_cancelled == False,
-        CalendarEvent.start_time >= datetime.now(timezone.utc),
-        CalendarEvent.start_time <= datetime.now(timezone.utc) + timedelta(hours=24),
+        CalendarEvent.start_time >= datetime.utcnow(),
+        CalendarEvent.start_time <= datetime.utcnow() + timedelta(hours=24),
     )
     existing_result = await db.execute(existing_stmt)
     for existing_event in existing_result.scalars():
@@ -207,7 +207,7 @@ async def sync_connection(connection: CalendarConnection, db: AsyncSession) -> i
             for sj in cancel_result.scalars():
                 sj.status = "cancelled"
 
-    connection.last_sync_at = datetime.now(timezone.utc)
+    connection.last_sync_at = datetime.utcnow()
     connection.last_error = None
     await db.commit()
 
