@@ -1,12 +1,17 @@
-"""Google OAuth2 flow for Calendar API access."""
+"""Google OAuth2 flow for Calendar API access.
+
+Uses direct HTTP calls instead of google_auth_oauthlib to avoid PKCE issues
+with the Flow class (code_verifier is lost between auth URL generation and
+token exchange since they happen in separate requests).
+"""
 
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from urllib.parse import urlencode
 
 import httpx
-from google_auth_oauthlib.flow import Flow
 
 from app.config import (
     GOOGLE_CALENDAR_CLIENT_ID,
@@ -17,16 +22,8 @@ from app.config import (
 
 logger = logging.getLogger(__name__)
 
-# Client config dict (avoids needing a JSON file)
-_CLIENT_CONFIG = {
-    "web": {
-        "client_id": GOOGLE_CALENDAR_CLIENT_ID,
-        "client_secret": GOOGLE_CALENDAR_CLIENT_SECRET,
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "redirect_uris": [GOOGLE_CALENDAR_REDIRECT_URI],
-    }
-}
+_AUTH_URI = "https://accounts.google.com/o/oauth2/auth"
+_TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 
 def build_authorization_url(state: Optional[str] = None) -> tuple[str, str]:
@@ -35,21 +32,20 @@ def build_authorization_url(state: Optional[str] = None) -> tuple[str, str]:
     Returns:
         Tuple of (authorization_url, state_token).
     """
-    flow = Flow.from_client_config(
-        _CLIENT_CONFIG,
-        scopes=GOOGLE_CALENDAR_SCOPES,
-        redirect_uri=GOOGLE_CALENDAR_REDIRECT_URI,
-    )
     if state is None:
         state = secrets.token_urlsafe(32)
 
-    authorization_url, state = flow.authorization_url(
-        access_type="offline",
-        include_granted_scopes="true",
-        prompt="consent",
-        state=state,
-        code_challenge_method=None,  # Disable PKCE — server-side flow with client_secret
-    )
+    params = {
+        "client_id": GOOGLE_CALENDAR_CLIENT_ID,
+        "redirect_uri": GOOGLE_CALENDAR_REDIRECT_URI,
+        "response_type": "code",
+        "scope": " ".join(GOOGLE_CALENDAR_SCOPES),
+        "access_type": "offline",
+        "include_granted_scopes": "true",
+        "prompt": "consent",
+        "state": state,
+    }
+    authorization_url = f"{_AUTH_URI}?{urlencode(params)}"
     return authorization_url, state
 
 
@@ -57,21 +53,30 @@ def exchange_code_for_tokens(code: str) -> dict:
     """Exchange authorization code for OAuth tokens.
 
     Returns:
-        Dict with keys: access_token, refresh_token, expires_at, scopes, id_info.
+        Dict with keys: access_token, refresh_token, expires_at, scopes.
     """
-    flow = Flow.from_client_config(
-        _CLIENT_CONFIG,
-        scopes=GOOGLE_CALENDAR_SCOPES,
-        redirect_uri=GOOGLE_CALENDAR_REDIRECT_URI,
-    )
-    flow.fetch_token(code=code)
+    with httpx.Client(timeout=15.0) as client:
+        resp = client.post(
+            _TOKEN_URI,
+            data={
+                "client_id": GOOGLE_CALENDAR_CLIENT_ID,
+                "client_secret": GOOGLE_CALENDAR_CLIENT_SECRET,
+                "code": code,
+                "grant_type": "authorization_code",
+                "redirect_uri": GOOGLE_CALENDAR_REDIRECT_URI,
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
 
-    credentials = flow.credentials
+    expires_in = data.get("expires_in", 3600)
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+
     return {
-        "access_token": credentials.token,
-        "refresh_token": credentials.refresh_token,
-        "expires_at": credentials.expiry,
-        "scopes": " ".join(credentials.scopes or GOOGLE_CALENDAR_SCOPES),
+        "access_token": data["access_token"],
+        "refresh_token": data.get("refresh_token"),
+        "expires_at": expires_at,
+        "scopes": data.get("scope", " ".join(GOOGLE_CALENDAR_SCOPES)),
     }
 
 
