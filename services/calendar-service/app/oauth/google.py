@@ -70,7 +70,8 @@ def exchange_code_for_tokens(code: str) -> dict:
         data = resp.json()
 
     expires_in = data.get("expires_in", 3600)
-    expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+    # Use naive UTC datetime to match TIMESTAMP WITHOUT TIME ZONE column
+    expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
 
     return {
         "access_token": data["access_token"],
@@ -102,7 +103,8 @@ async def refresh_access_token(refresh_token: str) -> dict:
         data = resp.json()
 
     expires_in = data.get("expires_in", 3600)
-    expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+    # Use naive UTC datetime to match TIMESTAMP WITHOUT TIME ZONE column
+    expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
 
     return {
         "access_token": data["access_token"],
