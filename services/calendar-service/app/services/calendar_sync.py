@@ -47,8 +47,8 @@ def _fetch_events_from_google(access_token: str, calendar_id: str = "primary") -
     service = build("calendar", "v3", credentials=credentials, cache_discovery=False)
 
     now = datetime.utcnow()
-    time_min = now.isoformat()
-    time_max = (now + timedelta(hours=24)).isoformat()
+    time_min = now.isoformat() + "Z"
+    time_max = (now + timedelta(hours=24)).isoformat() + "Z"
 
     events_result = service.events().list(
         calendarId=calendar_id,
