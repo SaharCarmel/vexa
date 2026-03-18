@@ -13,7 +13,7 @@ from sqlalchemy import func
 from pydantic import BaseModel, Field, HttpUrl
 
 # Import shared models and schemas
-from shared_models.models import User, APIToken, Base, Meeting, Transcription, MeetingSession # Import Base for init_db and Meeting
+from shared_models.models import User, APIToken, Base, Meeting, Transcription, MeetingSession, CalendarEvent, ScheduledJoin # Import Base for init_db and Meeting
 from shared_models.schemas import (UserCreate, UserResponse, TokenResponse, UserDetailResponse, UserBase, UserUpdate, MeetingResponse,
                                  UserTableResponse, MeetingTableResponse, MeetingSessionResponse, TranscriptionStats, 
                                  MeetingPerformanceMetrics, MeetingTelematicsResponse, UserMeetingStats, 
@@ -501,9 +501,24 @@ async def get_meetings_table(
         select(Meeting).options(selectinload(Meeting.user)).offset(skip).limit(limit)
     )
     meetings = result.scalars().all()
+
+    # Batch-fetch calendar events linked to these meetings via scheduled_joins
+    meeting_ids = [m.id for m in meetings]
+    cal_map: dict[int, CalendarEvent] = {}
+    if meeting_ids:
+        cal_result = await db.execute(
+            select(ScheduledJoin, CalendarEvent)
+            .join(CalendarEvent, ScheduledJoin.calendar_event_id == CalendarEvent.id)
+            .where(ScheduledJoin.meeting_id.in_(meeting_ids))
+        )
+        for sj, ce in cal_result.all():
+            if sj.meeting_id is not None:
+                cal_map[sj.meeting_id] = ce
+
     responses = []
     for m in meetings:
         data = m.data or {}
+        cal_event = cal_map.get(m.id)
         resp = MeetingTableResponse(
             id=m.id,
             user_id=m.user_id,
@@ -514,9 +529,11 @@ async def get_meetings_table(
             end_time=m.end_time,
             created_at=m.created_at,
             updated_at=m.updated_at,
-            meeting_name=data.get('name') or data.get('title'),
+            meeting_name=data.get('name') or data.get('title') or (cal_event.title if cal_event else None),
             participants=data.get('participants'),
             user_email=m.user.email if m.user else None,
+            calendar_event_title=cal_event.title if cal_event else None,
+            calendar_attendees=cal_event.attendees if cal_event else None,
         )
         responses.append(resp)
     return responses

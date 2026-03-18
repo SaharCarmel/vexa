@@ -5,6 +5,12 @@ import { useRouter } from 'next/navigation'
 import MeetingCalendar from '@/components/MeetingCalendar'
 import CopyTranscriptButton from '@/components/CopyTranscriptButton'
 
+interface CalendarAttendee {
+  email?: string
+  displayName?: string
+  responseStatus?: string
+}
+
 interface Meeting {
   id: number | string
   platform: string
@@ -15,6 +21,8 @@ interface Meeting {
   participants?: string[]
   start_time?: string | null
   end_time?: string | null
+  calendar_event_title?: string | null
+  calendar_attendees?: CalendarAttendee[] | null
   [key: string]: unknown
 }
 
@@ -140,9 +148,14 @@ export default function MeetingsPage() {
               ) : (
                 meetings.map((meeting, idx) => {
                   const colors = platformBadge[meeting.platform] ?? { bg: 'bg-gray-50', text: 'text-gray-700' }
-                  const participants = meeting.participants ?? []
-                  const visibleP = participants.slice(0, 3)
-                  const overflowP = participants.length - 3
+                  const calAttendees = meeting.calendar_attendees ?? []
+                  const transcriptParticipants = meeting.participants ?? []
+                  const hasCalendar = calAttendees.length > 0
+                  const peopleList = hasCalendar
+                    ? calAttendees.map(a => a.displayName || a.email?.split('@')[0] || a.email || 'Unknown')
+                    : transcriptParticipants
+                  const visibleP = peopleList.slice(0, 3)
+                  const overflowP = peopleList.length - 3
 
                   return (
                     <tr
@@ -152,9 +165,19 @@ export default function MeetingsPage() {
                     >
                       <td className="px-4 py-3 text-sm">
                         <div className="font-medium text-gray-900 truncate max-w-[200px]">
-                          {meeting.meeting_name || `Meeting #${meeting.id}`}
+                          {meeting.meeting_name || meeting.calendar_event_title || `Meeting #${meeting.id}`}
                         </div>
-                        <div className="text-xs text-gray-400 font-mono">#{String(meeting.id)}</div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-gray-400 font-mono">#{String(meeting.id)}</span>
+                          {meeting.calendar_event_title && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] text-indigo-500">
+                              <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              Calendar
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${colors.bg} ${colors.text}`}>
@@ -187,7 +210,7 @@ export default function MeetingsPage() {
                           {overflowP > 0 && (
                             <span className="text-xs text-gray-400">+{overflowP}</span>
                           )}
-                          {participants.length === 0 && <span className="text-gray-400">-</span>}
+                          {peopleList.length === 0 && <span className="text-gray-400">-</span>}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500">

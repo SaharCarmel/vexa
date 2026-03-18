@@ -13,6 +13,8 @@ interface Meeting {
   participants?: string[]
   start_time?: string | null
   end_time?: string | null
+  calendar_event_title?: string | null
+  calendar_attendees?: { email?: string; displayName?: string; responseStatus?: string }[] | null
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']

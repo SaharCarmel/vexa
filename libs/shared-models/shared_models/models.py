@@ -247,6 +247,7 @@ class CalendarEvent(Base):
     meeting_native_id = Column(String(255), nullable=True)
     meeting_url = Column(Text, nullable=True)
     meeting_passcode = Column(String(255), nullable=True)
+    attendees = Column(JSONB, nullable=True)  # list of {email, displayName, responseStatus}
     is_cancelled = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

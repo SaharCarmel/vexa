@@ -131,6 +131,21 @@ async def sync_connection(connection: CalendarConnection, db: AsyncSession) -> i
         cal_event.is_recurring = bool(g_event.get("recurringEventId"))
         cal_event.is_cancelled = g_event.get("status") == "cancelled"
 
+        # Store attendees from Google Calendar API
+        raw_attendees = g_event.get("attendees", [])
+        if raw_attendees:
+            cal_event.attendees = [
+                {
+                    "email": a.get("email", ""),
+                    "displayName": a.get("displayName", ""),
+                    "responseStatus": a.get("responseStatus", ""),
+                }
+                for a in raw_attendees
+                if not a.get("self", False)  # exclude the calendar owner
+            ]
+        else:
+            cal_event.attendees = None
+
         if meeting_info:
             platform, native_id, url, passcode = meeting_info
             cal_event.meeting_platform = platform

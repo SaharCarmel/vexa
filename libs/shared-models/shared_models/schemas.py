@@ -736,6 +736,8 @@ class MeetingTableResponse(BaseModel):
     meeting_name: Optional[str] = None
     participants: Optional[List[str]] = None
     user_email: Optional[str] = None
+    calendar_event_title: Optional[str] = None
+    calendar_attendees: Optional[List[dict]] = None
     # Excludes: data, transcriptions, sessions
 
     @field_validator('status', mode='before')
