@@ -238,9 +238,8 @@ services:
     ports:
       - "${DASHBOARD_HOST_PORT:-3001}:3000"
     environment:
-      - ADMIN_API_URL=http://admin-api:8001
+      - GATEWAY_URL=http://api-gateway:8000
       - ADMIN_API_TOKEN=${ADMIN_API_TOKEN}
-      - TRANSCRIPTION_COLLECTOR_URL=http://transcription-collector:8123
       - ADMIN_USERNAME=${DASHBOARD_ADMIN_USERNAME:-admin}
       - ADMIN_PASSWORD=${DASHBOARD_ADMIN_PASSWORD}
       - JWT_SECRET=${JWT_SECRET:-vexa-dev-jwt-secret}

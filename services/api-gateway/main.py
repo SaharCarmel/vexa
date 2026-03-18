@@ -889,8 +889,25 @@ async def set_user_webhook_proxy(request: Request):
     url = f"{ADMIN_API_URL}/user/webhook"
     return await forward_request(app.state.http_client, "PUT", url, request)
 
-# --- Admin API Routes --- 
-@app.api_route("/admin/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"], 
+# --- Internal Transcript Route (Admin-only) ---
+@app.get("/internal/transcripts/{meeting_id}",
+         tags=["Administration"],
+         summary="Get transcript segments for a meeting (admin)",
+         description="Fetches all transcript segments for a given meeting ID from the transcription collector. Requires `X-Admin-API-Key`.",
+         dependencies=[Depends(admin_api_key_scheme)])
+async def get_internal_transcript(request: Request, meeting_id: int):
+    """Admin-only proxy to transcription-collector internal transcripts endpoint."""
+    admin_key = request.headers.get("x-admin-api-key")
+    expected_key = os.getenv("ADMIN_API_TOKEN", "")
+    if not admin_key or admin_key != expected_key:
+        raise HTTPException(status_code=401, detail="Invalid or missing admin API key")
+    url = f"{TRANSCRIPTION_COLLECTOR_URL}/internal/transcripts/{meeting_id}"
+    resp = await app.state.http_client.get(url)
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type=resp.headers.get("content-type", "application/json"))
+
+# --- Admin API Routes ---
+@app.api_route("/admin/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
                tags=["Administration"],
                summary="Forward admin requests",
                description="Forwards requests prefixed with `/admin` to the Admin API service. Requires `X-Admin-API-Key`.",

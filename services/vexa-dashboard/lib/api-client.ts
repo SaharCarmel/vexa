@@ -1,16 +1,15 @@
-const ADMIN_API_URL = process.env.ADMIN_API_URL || 'http://localhost:8001'
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:8056'
 const ADMIN_API_TOKEN = process.env.ADMIN_API_TOKEN || ''
-const TRANSCRIPTION_COLLECTOR_URL =
-  process.env.TRANSCRIPTION_COLLECTOR_URL || 'http://localhost:8123'
+
+const adminHeaders = {
+  'X-Admin-API-Key': ADMIN_API_TOKEN,
+  'Content-Type': 'application/json',
+}
 
 export async function adminFetch(path: string, init?: RequestInit) {
-  const res = await fetch(`${ADMIN_API_URL}${path}`, {
+  const res = await fetch(`${GATEWAY_URL}${path}`, {
     ...init,
-    headers: {
-      'X-Admin-API-Key': ADMIN_API_TOKEN,
-      'Content-Type': 'application/json',
-      ...init?.headers,
-    },
+    headers: { ...adminHeaders, ...init?.headers },
     cache: 'no-store',
   })
   if (!res.ok) {
@@ -20,12 +19,9 @@ export async function adminFetch(path: string, init?: RequestInit) {
 }
 
 export async function collectorFetch(path: string, init?: RequestInit) {
-  const res = await fetch(`${TRANSCRIPTION_COLLECTOR_URL}${path}`, {
+  const res = await fetch(`${GATEWAY_URL}${path}`, {
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...init?.headers,
-    },
+    headers: { ...adminHeaders, ...init?.headers },
     cache: 'no-store',
   })
   if (!res.ok) {
