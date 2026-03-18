@@ -4,13 +4,13 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface Meeting {
-  id: string
+  id: number | string
   platform: string
   status: string
-  user_id?: string
+  user_id?: number | string
   user_email?: string
-  start_time?: string
-  end_time?: string
+  start_time?: string | null
+  end_time?: string | null
   [key: string]: unknown
 }
 
@@ -81,7 +81,7 @@ export default function MeetingsPage() {
                   className="hover:bg-gray-50 cursor-pointer transition-colors"
                 >
                   <td className="px-4 py-3 text-sm font-mono text-gray-700">
-                    {meeting.id?.slice(0, 8)}...
+                    {meeting.id}
                   </td>
                   <td className="px-4 py-3 text-sm">
                     <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">

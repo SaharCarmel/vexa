@@ -4,11 +4,13 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
 interface User {
-  id: string
+  id: number | string
   email: string
   name: string | null
   created_at: string
-  max_bots_allowed: number
+  max_concurrent_bots?: number
+  max_bots_allowed?: number
+  [key: string]: unknown
 }
 
 export default function UsersPage() {
@@ -76,7 +78,7 @@ export default function UsersPage() {
                 className="cursor-pointer hover:bg-gray-50 transition-colors"
               >
                 <td className="whitespace-nowrap px-6 py-4 text-sm font-mono text-gray-600">
-                  {user.id.slice(0, 8)}...
+                  {user.id}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-900">
                   {user.email}
@@ -92,7 +94,7 @@ export default function UsersPage() {
                   })}
                 </td>
                 <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                  {user.max_bots_allowed}
+                  {user.max_concurrent_bots ?? user.max_bots_allowed ?? "—"}
                 </td>
               </tr>
             ))}
