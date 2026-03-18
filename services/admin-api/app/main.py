@@ -497,9 +497,29 @@ async def get_meetings_table(
     Returns meeting table data for analytics without exposing sensitive information.
     Excludes: data JSONB field, transcriptions content
     """
-    result = await db.execute(select(Meeting).offset(skip).limit(limit))
+    result = await db.execute(
+        select(Meeting).options(selectinload(Meeting.user)).offset(skip).limit(limit)
+    )
     meetings = result.scalars().all()
-    return [MeetingTableResponse.model_validate(m) for m in meetings]
+    responses = []
+    for m in meetings:
+        data = m.data or {}
+        resp = MeetingTableResponse(
+            id=m.id,
+            user_id=m.user_id,
+            platform=m.platform,
+            native_meeting_id=getattr(m, 'platform_specific_id', None),
+            status=m.status,
+            start_time=m.start_time,
+            end_time=m.end_time,
+            created_at=m.created_at,
+            updated_at=m.updated_at,
+            meeting_name=data.get('name') or data.get('title'),
+            participants=data.get('participants'),
+            user_email=m.user.email if m.user else None,
+        )
+        responses.append(resp)
+    return responses
 
 @admin_router.get("/analytics/meetings/{meeting_id}/telematics",
                   response_model=MeetingTelematicsResponse,
