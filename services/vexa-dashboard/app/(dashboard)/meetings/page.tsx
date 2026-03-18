@@ -30,7 +30,7 @@ export default function MeetingsPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  function formatDate(dateStr?: string) {
+  function formatDate(dateStr?: string | null) {
     if (!dateStr) return '-'
     return new Date(dateStr).toLocaleString()
   }
