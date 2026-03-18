@@ -234,18 +234,19 @@ services:
 
   dashboard:
     build:
-      context: ${DASHBOARD_PATH:-../Vexa-Dashboard}
+      context: ./services/vexa-dashboard
     ports:
       - "${DASHBOARD_HOST_PORT:-3001}:3000"
     environment:
-      - VEXA_API_URL=http://api-gateway:8000
-      - VEXA_ADMIN_API_KEY=${ADMIN_API_TOKEN}
-      - VEXA_ADMIN_API_URL=http://admin-api:8001
+      - ADMIN_API_URL=http://admin-api:8001
+      - ADMIN_API_TOKEN=${ADMIN_API_TOKEN}
+      - TRANSCRIPTION_COLLECTOR_URL=http://transcription-collector:8123
+      - ADMIN_USERNAME=${DASHBOARD_ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${DASHBOARD_ADMIN_PASSWORD}
       - JWT_SECRET=${JWT_SECRET:-vexa-dev-jwt-secret}
-      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3001}
     init: true
     depends_on:
-      api-gateway:
+      admin-api:
         condition: service_started
     networks:
       - vexa_default
