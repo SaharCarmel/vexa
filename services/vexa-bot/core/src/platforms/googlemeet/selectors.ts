@@ -31,11 +31,9 @@ export const googleWaitingRoomIndicators: string[] = [
   '[aria-label*="Asking to be let in"]',
   '[aria-label*="waiting for admission"]',
   
-  // Progress/loading indicators in waiting room
-  '[role="progressbar"]',
-  '[aria-label*="loading"]',
-  '.loading-spinner',
-  
+  // NOTE: Generic progress/loading selectors removed (progressbar, loading, spinner)
+  // because they false-positive on any page loading state, not just waiting room.
+
   // Legacy patterns (keep for compatibility)
   'text="Ask to join"',
   'text="Join now"',

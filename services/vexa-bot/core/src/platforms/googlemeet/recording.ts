@@ -846,12 +846,11 @@ export async function startGoogleRecording(page: Page, botConfig: BotConfig): Pr
                 void stopWithFlush("beforeunload", () => resolve());
               });
 
-              document.addEventListener("visibilitychange", () => {
-                if (document.visibilityState === "hidden") {
-                  (window as any).logBot("Document is hidden. Stopping recorder...");
-                  void stopWithFlush("visibility_hidden", () => resolve());
-                }
-              });
+              // NOTE: visibilitychange handler intentionally removed.
+              // In Docker/Xvfb environments, the document transitions to "hidden"
+              // because there is no window manager giving focus, which immediately
+              // kills recording and cascades into a post_join_setup_error exit.
+              // The beforeunload listener and alone-timeout monitoring are sufficient.
             };
 
             setupGoogleMeetingMonitoring(botConfigData, audioService, whisperLiveService, resolve);

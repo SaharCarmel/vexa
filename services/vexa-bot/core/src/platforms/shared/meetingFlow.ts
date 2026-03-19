@@ -134,15 +134,25 @@ export async function runMeetingFlow(
       await callStartupCallback(botConfig);
       
       // CRITICAL: Verify bot is still in meeting after callback (prevent false positives)
-      // Use silent check to avoid sending AWAITING_ADMISSION callback again
+      // Use silent check to avoid sending AWAITING_ADMISSION callback again.
+      // Retry up to 3 times with 2s delays because the UI may still be transitioning
+      // right after admission (Google Meet rebuilds DOM elements during this phase).
       log("Verifying bot is still in meeting after ACTIVE callback...");
-      const stillAdmitted = await strategies.checkAdmissionSilent(page);
+      let stillAdmitted = false;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        stillAdmitted = await strategies.checkAdmissionSilent(page);
+        if (stillAdmitted) break;
+        if (attempt < 3) {
+          log(`Admission verification attempt ${attempt}/3 failed, retrying in 2s (UI may still be transitioning)...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
       if (!stillAdmitted) {
-        log("🚨 Bot is NOT in meeting after ACTIVE callback - false positive detected!");
+        log("Bot is NOT in meeting after ACTIVE callback - false positive detected!");
         await gracefulLeaveFunction(page, 0, "admission_false_positive");
         return;
       }
-      log("✅ Bot verified to be in meeting after ACTIVE callback");
+      log("Bot verified to be in meeting after ACTIVE callback");
 
       // Re-enable virtual camera after admission. Google Meet may re-negotiate
       // WebRTC tracks during the waiting-room → meeting transition, killing
