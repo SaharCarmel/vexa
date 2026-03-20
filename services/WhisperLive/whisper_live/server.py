@@ -14,12 +14,24 @@ import websocket
 import sys # Added sys import
 import socket  # Added to resolve container IP for ws_url
 
-import torch
+try:
+    import torch
+except ImportError:
+    torch = None  # Remote backend doesn't need torch
+
 import numpy as np
 from websockets.sync.server import serve
 from websockets.exceptions import ConnectionClosed
-from whisper_live.vad import VoiceActivityDetector
-from whisper_live.transcriber import WhisperModel
+
+try:
+    from whisper_live.vad import VoiceActivityDetector
+except ImportError:
+    VoiceActivityDetector = None  # Remote backend doesn't need VAD
+
+try:
+    from whisper_live.transcriber import WhisperModel
+except ImportError:
+    WhisperModel = None  # Remote backend doesn't need local transcriber
 try:
     from whisper_live.transcriber_tensorrt import WhisperTRTLLM
     TENSORRT_AVAILABLE = True

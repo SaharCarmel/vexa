@@ -1,9 +1,17 @@
 import os
 import subprocess
-import torch
 import numpy as np
-import onnxruntime
 import warnings
+
+try:
+    import torch
+except ImportError:
+    torch = None
+
+try:
+    import onnxruntime
+except ImportError:
+    onnxruntime = None
 
 
 class VoiceActivityDetection():

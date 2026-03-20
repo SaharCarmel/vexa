@@ -29,6 +29,30 @@
 # =============================================================================
 
 # -----------------------------------------------------------------------------
+# Stage 0: Build Zoom SDK native addon
+# -----------------------------------------------------------------------------
+FROM --platform=linux/amd64 node:20-bullseye AS native-builder
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    python3 \
+    libssl-dev \
+    qtbase5-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app/vexa-bot
+
+# Copy package files and binding.gyp for native build
+COPY services/vexa-bot/package*.json ./
+COPY services/vexa-bot/binding.gyp ./
+COPY services/vexa-bot/core/src/platforms/zoom/native/ ./core/src/platforms/zoom/native/
+
+RUN npm install --ignore-scripts
+RUN mkdir -p build/Release && \
+    (npm run build:native || echo "[Build] Native addon build skipped (SDK not available)")
+
+# -----------------------------------------------------------------------------
 # Base Image: Playwright with browsers pre-installed
 # -----------------------------------------------------------------------------
 FROM mcr.microsoft.com/playwright:v1.56.0-jammy AS base
@@ -105,14 +129,20 @@ RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
 RUN pip3 install --no-cache-dir --upgrade pydantic>=2.0.0 && \
     pip3 install --no-cache-dir -r /tmp/requirements-mcp.txt
 
-# WhisperLive dependencies (CPU version)
-# Note: openai-whisper and onnxruntime GPU versions are excluded
-RUN sed -i '/openai-whisper/d' /tmp/requirements-whisperlive.txt || true \
-    && sed -i '/onnxruntime==/d' /tmp/requirements-whisperlive.txt || true \
-    && pip3 install --no-cache-dir -r /tmp/requirements-whisperlive.txt \
-    && pip3 install --no-cache-dir onnxruntime \
-    && pip3 install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu \
-    && pip3 install --no-cache-dir 'faster-whisper[cpu]'
+# WhisperLive dependencies
+# When WHISPER_BACKEND=remote (default), skip heavy ML deps (PyTorch, onnxruntime, faster-whisper)
+# to save ~1-1.5 GB RAM. Only install the lightweight deps needed for remote transcription.
+ARG WHISPER_BACKEND=remote
+RUN if [ "$WHISPER_BACKEND" != "remote" ]; then \
+      sed -i '/openai-whisper/d' /tmp/requirements-whisperlive.txt || true \
+      && sed -i '/onnxruntime==/d' /tmp/requirements-whisperlive.txt || true \
+      && pip3 install --no-cache-dir -r /tmp/requirements-whisperlive.txt \
+      && pip3 install --no-cache-dir onnxruntime \
+      && pip3 install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu \
+      && pip3 install --no-cache-dir 'faster-whisper[cpu]'; \
+    else \
+      pip3 install --no-cache-dir websockets websocket-client "redis>=4.6.0" groq "httpx>=0.24.0" soundfile scipy av "numpy<2" numba; \
+    fi
 
 # Clean up requirements files
 RUN rm -f /tmp/requirements-*.txt
@@ -169,10 +199,13 @@ COPY libs/shared-models/alembic/ /app/alembic/
 # Copy vexa-bot source
 COPY services/vexa-bot/core/ /app/vexa-bot/
 
-# Build the bot
+# Build the bot (TypeScript)
 WORKDIR /app/vexa-bot
 RUN npm ci --omit=dev 2>/dev/null || npm install \
     && npm run build
+
+# Copy built native addon from builder stage (non-fatal if not built)
+COPY --from=native-builder /app/vexa-bot/build /app/vexa-bot/build
 
 # Install additional browsers for Teams support
 RUN npx playwright install msedge --with-deps || true
@@ -217,6 +250,9 @@ ENV WHISPER_LIVE_URL=ws://localhost:9090 \
 
 # Display for headless browsers
 ENV DISPLAY=:99
+
+# Zoom SDK library paths (for native addon)
+ENV LD_LIBRARY_PATH="/app/vexa-bot/core/src/platforms/zoom/native/zoom_meeting_sdk:/app/vexa-bot/core/src/platforms/zoom/native/zoom_meeting_sdk/qt_libs:/app/vexa-bot/core/src/platforms/zoom/native/zoom_meeting_sdk/qt_libs/Qt/lib:${LD_LIBRARY_PATH}"
 
 # Logging
 ENV LOG_LEVEL=info \

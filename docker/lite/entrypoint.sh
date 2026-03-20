@@ -132,6 +132,15 @@ export TRANSCRIBER_API_KEY="${TRANSCRIBER_API_KEY:-${REMOTE_TRANSCRIBER_API_KEY:
 export REMOTE_TRANSCRIBER_API_KEY="${REMOTE_TRANSCRIBER_API_KEY:-${TRANSCRIBER_API_KEY:-}}"
 export REMOTE_TRANSCRIBER_MODEL="${REMOTE_TRANSCRIBER_MODEL:-default}"
 
+# Zoom SDK library paths (for native addon)
+SDK_LIB_DIR="/app/vexa-bot/core/src/platforms/zoom/native/zoom_meeting_sdk"
+if [ -f "${SDK_LIB_DIR}/libmeetingsdk.so" ]; then
+    export LD_LIBRARY_PATH="${SDK_LIB_DIR}:${SDK_LIB_DIR}/qt_libs:${SDK_LIB_DIR}/qt_libs/Qt/lib:${LD_LIBRARY_PATH}"
+    echo "Zoom SDK: native libraries found, LD_LIBRARY_PATH configured"
+else
+    echo "Zoom SDK: native libraries not found, running in stub mode"
+fi
+
 echo "Configuration:"
 echo "  - Redis URL: ${REDIS_URL}"
 echo "  - Database URL: ${DATABASE_URL}"
@@ -465,13 +474,6 @@ fi
 
 echo "[PulseAudio Setup] Creating null sink for audio capture..."
 pactl load-module module-null-sink sink_name=zoom_sink sink_properties=device.description="ZoomAudioSink" 2>/dev/null || true
-
-echo "[PulseAudio Setup] Creating TTS sink for voice agent..."
-pactl load-module module-null-sink sink_name=tts_sink sink_properties=device.description="TTSAudioSink" 2>/dev/null || true
-
-echo "[PulseAudio Setup] Creating virtual microphone from TTS sink monitor..."
-pactl load-module module-remap-source master=tts_sink.monitor source_name=virtual_mic source_properties=device.description="VirtualMicrophone" 2>/dev/null || true
-pactl set-default-source virtual_mic 2>/dev/null || true
 
 echo "[PulseAudio Setup] Done - sinks configured"
 PA_EOF
