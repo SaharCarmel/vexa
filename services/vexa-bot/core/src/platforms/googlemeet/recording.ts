@@ -736,13 +736,34 @@ export async function startGoogleRecording(page: Page, botConfig: BotConfig): Pr
               return Array.from(new Set(participants));
             };
 
+            // People button badge count - reads the "(N)" from the People button's aria-label
+            // This is maintained by Google Meet itself and is far more reliable than DOM scraping
+            const getPeopleButtonCount = (): number => {
+              for (const sel of selectors.peopleButtonSelectors) {
+                try {
+                  const btn = document.querySelector(sel);
+                  if (!btn) continue;
+                  const label = btn.getAttribute('aria-label') || btn.textContent || '';
+                  const match = label.match(/\((\d+)\)/);
+                  if (match) return parseInt(match[1], 10);
+                } catch {}
+              }
+              return 0;
+            };
+
             (window as any).getGoogleMeetActiveParticipants = () => {
               const names = extractParticipantsFromMain((botConfigData as any)?.botName);
               (window as any).logBot(`🔍 [Google Meet Participants] ${JSON.stringify(names)}`);
               return names;
             };
             (window as any).getGoogleMeetActiveParticipantsCount = () => {
-              return (window as any).getGoogleMeetActiveParticipants().length;
+              const mainCount = (window as any).getGoogleMeetActiveParticipants().length;
+              const badgeCount = getPeopleButtonCount();
+              const finalCount = Math.max(mainCount, badgeCount);
+              if (mainCount !== badgeCount) {
+                (window as any).logBot(`[Participant Count] mainScan=${mainCount}, peopleBadge=${badgeCount}, using=${finalCount}`);
+              }
+              return finalCount;
             };
             
             // Setup Google Meet meeting monitoring (browser context)
@@ -823,13 +844,9 @@ export async function startGoogleRecording(page: Page, botConfig: BotConfig): Pr
                       );
                     }
                   } else if (aloneTime > 0 && aloneTime % 10 === 0) { // Log every 10 seconds to avoid spam
-                    if (speakersIdentified) {
-                      (window as any).logBot(`Bot has been alone for ${aloneTime} seconds (${timeoutDescription} mode). Will leave in ${currentTimeout - aloneTime} more seconds.`);
-                    } else {
-                      const remainingMinutes = Math.floor((currentTimeout - aloneTime) / 60);
-                      const remainingSeconds = (currentTimeout - aloneTime) % 60;
-                      (window as any).logBot(`Bot has been alone for ${aloneTime} seconds during startup. Will leave in ${remainingMinutes}m ${remainingSeconds}s.`);
-                    }
+                    const mainCount = extractParticipantsFromMain((botConfigData as any)?.botName).length;
+                    const badgeCount = getPeopleButtonCount();
+                    (window as any).logBot(`[Alone Debug] mainScan=${mainCount}, peopleBadge=${badgeCount}, aloneTime=${aloneTime}s/${currentTimeout}s (${timeoutDescription})`);
                   }
                 } else {
                   aloneTime = 0; // Reset if others are present

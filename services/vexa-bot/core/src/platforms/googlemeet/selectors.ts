@@ -243,9 +243,8 @@ export const googleRemovalIndicators: string[] = [
   'text="You have been removed"',
   'text*="been removed"',
   'text="The meeting organizer removed you"',
-  '.error-message',
-  '.connection-error',
-  '.meeting-error'
+  // NOTE: Generic CSS classes (.error-message, .connection-error, .meeting-error)
+  // removed — they false-positive on unrelated Google Meet DOM elements
 ];
 
 // Google Meet UI interaction selectors

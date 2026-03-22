@@ -174,7 +174,7 @@ async def start_bot_container(
         "container_name": pod_name,
         "automaticLeave": {
             "waitingRoomTimeout": 300000,
-            "noOneJoinedTimeout": 120000,
+            "noOneJoinedTimeout": 300000,
             "everyoneLeftTimeout": 60000,
         },
         "botManagerCallbackUrl": f"{BOT_CALLBACK_BASE_URL}/bots/internal/callback/exited",
