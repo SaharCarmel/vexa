@@ -44,8 +44,12 @@ services:
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - DB_SSL_MODE=${DB_SSL_MODE:-disable}
       - ADMIN_API_TOKEN=${ADMIN_API_TOKEN}
+      - BOT_MANAGER_URL=http://bot-manager:8080
       - LOG_LEVEL=DEBUG
     init: true
+    depends_on:
+      bot-manager:
+        condition: service_started
     networks:
       - vexa_default
     restart: unless-stopped
