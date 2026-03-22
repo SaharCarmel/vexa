@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import MeetingCalendar from '@/components/MeetingCalendar'
 import CopyTranscriptButton from '@/components/CopyTranscriptButton'
@@ -44,13 +44,14 @@ export default function MeetingsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState<ViewMode>('calendar')
+  const [showJoinModal, setShowJoinModal] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
     setView(getInitialView())
   }, [])
 
-  useEffect(() => {
+  const fetchMeetings = useCallback(() => {
     fetch('/api/meetings')
       .then((res) => res.json())
       .then((data) => {
@@ -59,6 +60,10 @@ export default function MeetingsPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    fetchMeetings()
+  }, [fetchMeetings])
 
   function toggleView(v: ViewMode) {
     setView(v)
@@ -88,36 +93,58 @@ export default function MeetingsPage() {
 
   return (
     <div>
-      {/* Header with view toggle */}
+      {/* Header with view toggle and Add Bot button */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Meetings</h1>
-        <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5">
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => toggleView('calendar')}
-            aria-pressed={view === 'calendar'}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-              view === 'calendar' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900'
-            }`}
+            onClick={() => setShowJoinModal(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Calendar
+            Add Bot to Meeting
           </button>
-          <button
-            onClick={() => toggleView('table')}
-            aria-pressed={view === 'table'}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-              view === 'table' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-            </svg>
-            Table
-          </button>
+          <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5">
+            <button
+              onClick={() => toggleView('calendar')}
+              aria-pressed={view === 'calendar'}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                view === 'calendar' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Calendar
+            </button>
+            <button
+              onClick={() => toggleView('table')}
+              aria-pressed={view === 'table'}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                view === 'table' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+              </svg>
+              Table
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Join Meeting Modal */}
+      {showJoinModal && (
+        <JoinMeetingModal
+          onClose={() => setShowJoinModal(false)}
+          onSuccess={() => {
+            setShowJoinModal(false)
+            fetchMeetings()
+          }}
+        />
+      )}
 
       {/* Calendar View */}
       {view === 'calendar' && <MeetingCalendar meetings={meetings} />}
@@ -230,6 +257,153 @@ export default function MeetingsPage() {
           </table>
         </div>
       )}
+    </div>
+  )
+}
+
+function JoinMeetingModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+  const [meetingUrl, setMeetingUrl] = useState('')
+  const [botName, setBotName] = useState('')
+  const [language, setLanguage] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    setSubmitting(true)
+
+    try {
+      const body: Record<string, string> = { meeting_url: meetingUrl }
+      if (botName.trim()) body.bot_name = botName.trim()
+      if (language.trim()) body.language = language.trim()
+
+      const res = await fetch('/api/bots/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || `Request failed (${res.status})`)
+        return
+      }
+
+      setSuccess(true)
+      setTimeout(onSuccess, 1200)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+
+      {/* Modal */}
+      <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Add Bot to Meeting</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {success ? (
+          <div className="rounded-lg bg-green-50 border border-green-200 p-4 text-green-700 text-sm">
+            Bot is joining the meeting!
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="meeting-url" className="block text-sm font-medium text-gray-700 mb-1">
+                Meeting URL <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="meeting-url"
+                type="url"
+                required
+                value={meetingUrl}
+                onChange={(e) => setMeetingUrl(e.target.value)}
+                placeholder="https://meet.google.com/abc-defg-hij"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+              />
+              <p className="mt-1 text-xs text-gray-400">Google Meet, Teams, or Zoom URL</p>
+            </div>
+
+            <div>
+              <label htmlFor="bot-name" className="block text-sm font-medium text-gray-700 mb-1">
+                Bot Name
+              </label>
+              <input
+                id="bot-name"
+                type="text"
+                value={botName}
+                onChange={(e) => setBotName(e.target.value)}
+                placeholder="Vexa"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="language" className="block text-sm font-medium text-gray-700 mb-1">
+                Language
+              </label>
+              <select
+                id="language"
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+              >
+                <option value="">Auto-detect</option>
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="pt">Portuguese</option>
+                <option value="it">Italian</option>
+                <option value="ja">Japanese</option>
+                <option value="ko">Korean</option>
+                <option value="zh">Chinese</option>
+                <option value="ar">Arabic</option>
+                <option value="he">Hebrew</option>
+                <option value="ru">Russian</option>
+              </select>
+            </div>
+
+            {error && (
+              <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting || !meetingUrl}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {submitting ? 'Sending...' : 'Add Bot'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   )
 }

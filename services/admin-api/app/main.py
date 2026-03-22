@@ -2,6 +2,9 @@ import logging
 import secrets
 import string
 import os
+import re
+import hashlib
+from urllib.parse import urlparse, parse_qs
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, status, Security, Response
 from fastapi.security import APIKeyHeader
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +14,7 @@ from typing import List, Optional  # Import List for response model
 from datetime import datetime # Import datetime
 from sqlalchemy import func
 from pydantic import BaseModel, Field, HttpUrl
+import httpx
 
 # Import shared models and schemas
 from shared_models.models import User, APIToken, Base, Meeting, Transcription, MeetingSession, CalendarEvent, ScheduledJoin # Import Base for init_db and Meeting
@@ -704,6 +708,172 @@ async def get_user_details(
         usage_patterns=usage_patterns,
         api_tokens=[TokenResponse.model_validate(t) for t in user.api_tokens] if include_tokens else None
     )
+
+# --- Bot Join by URL ---
+
+BOT_MANAGER_URL = os.getenv("BOT_MANAGER_URL")
+
+class AdminJoinMeetingRequest(BaseModel):
+    meeting_url: str = Field(..., description="Full meeting URL (Google Meet, Teams, or Zoom)")
+    bot_name: Optional[str] = Field(None, description="Optional display name for the bot")
+    language: Optional[str] = Field(None, description="Optional language code for transcription (e.g., 'en', 'es')")
+
+class ParsedMeetingUrl(BaseModel):
+    platform: str
+    native_meeting_id: str
+    passcode: Optional[str] = None
+    meeting_url: Optional[str] = None
+    teams_base_host: Optional[str] = None
+    warnings: List[str] = Field(default_factory=list)
+
+_TEAMS_ENTERPRISE_HOSTS = {
+    "teams.microsoft.com",
+    "gov.teams.microsoft.us",
+    "dod.teams.microsoft.us",
+}
+
+def _is_teams_enterprise_host(host: str) -> bool:
+    return host in _TEAMS_ENTERPRISE_HOSTS or host.endswith(".teams.microsoft.us")
+
+def _parse_meeting_url(meeting_url: str) -> ParsedMeetingUrl:
+    """Parse a meeting URL into platform, native_meeting_id, and optional passcode."""
+    url = (meeting_url or "").strip()
+    if not url:
+        raise HTTPException(status_code=422, detail="meeting_url cannot be empty")
+
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    path = parsed.path or ""
+    query = parse_qs(parsed.query or "")
+    warnings: List[str] = []
+
+    # Google Meet
+    if host == "meet.google.com":
+        if path.startswith("/lookup/"):
+            raise HTTPException(status_code=422, detail="Google Meet /lookup/ URLs cannot be joined directly.")
+        code = path.strip("/").split("/")[0] if path else ""
+        if re.fullmatch(r"^[a-z]{3}-[a-z]{4}-[a-z]{3}$", code):
+            return ParsedMeetingUrl(platform="google_meet", native_meeting_id=code, warnings=warnings)
+        if re.fullmatch(r"^[a-z0-9][a-z0-9-]{3,38}[a-z0-9]$", code):
+            warnings.append("Custom Google Meet nickname detected.")
+            return ParsedMeetingUrl(platform="google_meet", native_meeting_id=code, warnings=warnings)
+        raise HTTPException(status_code=422, detail="Invalid Google Meet URL.")
+
+    # Teams personal
+    if host.endswith("teams.live.com"):
+        m = re.match(r"^/meet/(\d{10,15})/?$", path)
+        if not m:
+            raise HTTPException(status_code=422, detail="Unsupported teams.live.com URL format.")
+        native_id = m.group(1)
+        passcode = (query.get("p") or [None])[0]
+        if not passcode:
+            warnings.append("Teams meeting link has no ?p= passcode.")
+        return ParsedMeetingUrl(platform="teams", native_meeting_id=native_id, passcode=passcode, warnings=warnings)
+
+    # Teams enterprise
+    if _is_teams_enterprise_host(host):
+        fragment = parsed.fragment or ""
+        if path.rstrip("/") in ("/v2", "") and fragment.startswith("/meet/"):
+            frag_parsed = urlparse("https://x" + fragment)
+            fm = re.match(r"^/meet/(\d{10,15})/?$", frag_parsed.path)
+            if fm:
+                native_id = fm.group(1)
+                frag_query = parse_qs(frag_parsed.query or "")
+                passcode = (frag_query.get("p") or [None])[0]
+                if not passcode:
+                    warnings.append("Teams meeting link has no ?p= passcode.")
+                return ParsedMeetingUrl(platform="teams", native_meeting_id=native_id, passcode=passcode, teams_base_host=host, warnings=warnings)
+        m = re.match(r"^/meet/(\d{10,15})/?$", path)
+        if m:
+            native_id = m.group(1)
+            passcode = (query.get("p") or [None])[0]
+            if not passcode:
+                warnings.append("Teams meeting link has no ?p= passcode.")
+            return ParsedMeetingUrl(platform="teams", native_meeting_id=native_id, passcode=passcode, teams_base_host=host, warnings=warnings)
+        if "/l/meetup-join/" in path:
+            url_hash = hashlib.sha256(url.encode()).hexdigest()[:16]
+            warnings.append("Legacy Teams enterprise URL detected.")
+            return ParsedMeetingUrl(platform="teams", native_meeting_id=url_hash, meeting_url=url, warnings=warnings)
+        raise HTTPException(status_code=422, detail="Unsupported Teams enterprise URL format.")
+
+    # Zoom
+    if "zoom.us" in host or "zoomgov.com" in host:
+        if host in {"events.zoom.us", "ev.zoom.com"} or host.endswith(".events.zoom.us"):
+            raise HTTPException(status_code=422, detail="Zoom Events links are not supported.")
+        parts = [p for p in path.split("/") if p]
+        native_id = ""
+        if len(parts) >= 2 and parts[0] in {"j", "w"}:
+            native_id = parts[1]
+        elif len(parts) >= 3 and parts[0] == "wc" and parts[1] == "join":
+            native_id = parts[2]
+        elif len(parts) >= 2 and parts[0] == "my":
+            raise HTTPException(status_code=422, detail="Zoom personal meeting room links (/my/...) are not supported.")
+        if not re.fullmatch(r"^\d{9,11}$", native_id or ""):
+            raise HTTPException(status_code=422, detail="Unsupported Zoom URL format.")
+        passcode = (query.get("pwd") or [None])[0]
+        return ParsedMeetingUrl(platform="zoom", native_meeting_id=native_id, passcode=passcode, warnings=warnings)
+
+    raise HTTPException(status_code=422, detail="Unsupported meeting URL (unknown provider).")
+
+
+@admin_router.post("/bots/join",
+             summary="Add a bot to a meeting by URL",
+             description="Parse a meeting URL and launch a bot. Uses the first user's API token.")
+async def admin_join_meeting(
+    req: AdminJoinMeetingRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    if not BOT_MANAGER_URL:
+        raise HTTPException(status_code=500, detail="BOT_MANAGER_URL not configured")
+
+    # Parse the meeting URL
+    parsed = _parse_meeting_url(req.meeting_url)
+
+    # Get the first user and their API token
+    result = await db.execute(
+        select(User).options(selectinload(User.api_tokens)).limit(1)
+    )
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="No users found in the system")
+    if not user.api_tokens:
+        raise HTTPException(status_code=404, detail=f"User {user.email} has no API tokens")
+
+    api_token = user.api_tokens[0].token
+
+    # Build the bot-manager payload
+    payload = {
+        "platform": parsed.platform,
+        "native_meeting_id": parsed.native_meeting_id,
+    }
+    if parsed.passcode:
+        payload["passcode"] = parsed.passcode
+    if parsed.meeting_url:
+        payload["meeting_url"] = parsed.meeting_url
+    if parsed.teams_base_host:
+        payload["teams_base_host"] = parsed.teams_base_host
+    if req.bot_name:
+        payload["bot_name"] = req.bot_name
+    if req.language:
+        payload["language"] = req.language
+
+    # Call bot-manager
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            f"{BOT_MANAGER_URL}/bots",
+            json=payload,
+            headers={"X-API-Key": api_token},
+        )
+
+    if resp.status_code >= 400:
+        try:
+            detail = resp.json().get("detail", resp.text)
+        except Exception:
+            detail = resp.text
+        raise HTTPException(status_code=resp.status_code, detail=detail)
+
+    return resp.json()
+
 
 # App events
 @app.on_event("startup")
