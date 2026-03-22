@@ -482,6 +482,24 @@ echo "  PulseAudio sink setup script created"
 echo ""
 
 # -----------------------------------------------------------------------------
+# Conditional Service Startup
+# -----------------------------------------------------------------------------
+
+# Enable internal Redis only if needed (external Redis skips this)
+if [ "$USE_INTERNAL_REDIS" = "true" ]; then
+    echo "Enabling internal Redis server..."
+    sed -i '/\[program:redis\]/,/^\[/{s/autostart=false/autostart=true/}' /etc/supervisor/conf.d/vexa.conf
+fi
+
+# Enable PulseAudio only if TTS is explicitly enabled
+if [ "${ENABLE_TTS:-false}" = "true" ]; then
+    echo "Enabling PulseAudio for TTS..."
+    sed -i '/\[program:pulseaudio\]/,/^\[/{s/autostart=false/autostart=true/; s/autorestart=false/autorestart=true/}' /etc/supervisor/conf.d/vexa.conf
+    sed -i '/\[program:pulseaudio-setup\]/,/^\[/{s/autostart=false/autostart=true/}' /etc/supervisor/conf.d/vexa.conf
+    sed -i '/\[program:tts-service\]/,/^\[/{s/autostart=false/autostart=true/; s/autorestart=false/autorestart=true/}' /etc/supervisor/conf.d/vexa.conf
+fi
+
+# -----------------------------------------------------------------------------
 # Start Services
 # -----------------------------------------------------------------------------
 

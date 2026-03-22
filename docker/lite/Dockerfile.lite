@@ -256,7 +256,12 @@ ENV LD_LIBRARY_PATH="/app/vexa-bot/core/src/platforms/zoom/native/zoom_meeting_s
 
 # Logging
 ENV LOG_LEVEL=info \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Memory optimization: limit glibc memory arenas to reduce fragmentation
+# Default is 8*cores which creates dozens of mostly-empty 64MB arenas across 8+ Python processes
+ENV MALLOC_ARENA_MAX=2
 
 # Recording storage defaults (lite)
 # Default to local filesystem for single-container deployments.
